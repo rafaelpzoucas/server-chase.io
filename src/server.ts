@@ -41,6 +41,7 @@ const gameState: GameState = {
 const CANVAS_WIDTH = 800;
 const CANVAS_HEIGHT = 600;
 const PLAYER_SPEED = 5;
+const PIQUE_SPEED_BONUS = 1.3;
 
 const isPositionTooClose = (position: { x: number; y: number }): boolean => {
   const MIN_DISTANCE = 100;
@@ -236,16 +237,24 @@ io.on("connection", (socket) => {
 
     switch (data.input) {
       case "up":
-        player.velocity.y = data.state ? -PLAYER_SPEED : 0;
+        player.velocity.y = data.state
+          ? -(PLAYER_SPEED * (player.isIt ? PIQUE_SPEED_BONUS : 1))
+          : 0;
         break;
       case "down":
-        player.velocity.y = data.state ? PLAYER_SPEED : 0;
+        player.velocity.y = data.state
+          ? PLAYER_SPEED * (player.isIt ? PIQUE_SPEED_BONUS : 1)
+          : 0;
         break;
       case "left":
-        player.velocity.x = data.state ? -PLAYER_SPEED : 0;
+        player.velocity.x = data.state
+          ? -(PLAYER_SPEED * (player.isIt ? PIQUE_SPEED_BONUS : 1))
+          : 0;
         break;
       case "right":
-        player.velocity.x = data.state ? PLAYER_SPEED : 0;
+        player.velocity.x = data.state
+          ? PLAYER_SPEED * (player.isIt ? PIQUE_SPEED_BONUS : 1)
+          : 0;
         break;
     }
 
