@@ -25,6 +25,7 @@ interface Player {
   height: number;
   nickname?: string;
   isIt: boolean;
+  velocity: { x: number; y: number };
 }
 
 interface GameState {
@@ -36,6 +37,10 @@ const gameState: GameState = {
   players: new Map(),
   gameStarted: false,
 };
+
+const CANVAS_WIDTH = 800;
+const CANVAS_HEIGHT = 600;
+const PLAYER_SPEED = 5;
 
 const isPositionTooClose = (position: { x: number; y: number }): boolean => {
   const MIN_DISTANCE = 100;
@@ -99,17 +104,14 @@ const selectRandomPlayerAsIt = () => {
   });
 };
 
-const checkCollisionAndTransferPique = (
-  movingPlayer: Player,
-  position: { x: number; y: number }
-) => {
+const checkCollisionAndTransferPique = (movingPlayer: Player) => {
   if (!movingPlayer.isIt) return;
 
   for (const [playerId, otherPlayer] of gameState.players.entries()) {
     if (playerId === movingPlayer.id || otherPlayer.isIt) continue;
 
-    const dx = position.x - otherPlayer.position.x;
-    const dy = position.y - otherPlayer.position.y;
+    const dx = movingPlayer.position.x - otherPlayer.position.x;
+    const dy = movingPlayer.position.y - otherPlayer.position.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
 
     const collisionDistance = movingPlayer.width / 2 + otherPlayer.width / 2;
@@ -137,25 +139,51 @@ const checkCollisionAndTransferPique = (
   }
 };
 
+const updatePlayerPositions = () => {
+  for (const player of gameState.players.values()) {
+    // Atualiza posição baseada na velocidade
+    let newX = player.position.x + player.velocity.x;
+    let newY = player.position.y + player.velocity.y;
+
+    // Verifica limites do canvas
+    newX = Math.max(0, Math.min(CANVAS_WIDTH - player.width, newX));
+    newY = Math.max(0, Math.min(CANVAS_HEIGHT - player.height, newY));
+
+    player.position.x = newX;
+    player.position.y = newY;
+
+    // Verifica colisões se o jogador estiver no pique
+    if (player.velocity.x !== 0 || player.velocity.y !== 0) {
+      checkCollisionAndTransferPique(player);
+    }
+  }
+};
+
+// Game loop do servidor
+setInterval(() => {
+  if (gameState.players.size > 0) {
+    updatePlayerPositions();
+
+    // Envia atualizações de posição para todos os clientes
+    const playersArray = Array.from(gameState.players.values());
+    io.emit("game:playersUpdate", playersArray);
+  }
+}, 1000 / 60); // 60 FPS
+
 io.on("connection", (socket) => {
   console.log(`Player connected, ${socket.id}`);
 
   socket.on(
     "game:initRequest",
-    (data: {
-      canvasWidth: number;
-      canvasHeight: number;
-      playerWidth: number;
-      playerHeight: number;
-    }) => {
-      const { canvasWidth, canvasHeight, playerWidth, playerHeight } = data;
+    (data: { playerWidth: number; playerHeight: number }) => {
+      const { playerWidth, playerHeight } = data;
 
       const newPlayer: Player = {
         id: socket.id,
         socketId: socket.id,
         position: getRandomSpawnPosition(
-          canvasWidth,
-          canvasHeight,
+          CANVAS_WIDTH,
+          CANVAS_HEIGHT,
           playerWidth,
           playerHeight
         ),
@@ -164,6 +192,7 @@ io.on("connection", (socket) => {
         height: playerHeight,
         nickname: `Player ${gameState.players.size + 1}`,
         isIt: false,
+        velocity: { x: 0, y: 0 },
       };
 
       gameState.players.set(socket.id, newPlayer);
@@ -172,6 +201,8 @@ io.on("connection", (socket) => {
         playerId: socket.id,
         player: newPlayer,
         players: Array.from(gameState.players.values()),
+        canvasWidth: CANVAS_WIDTH,
+        canvasHeight: CANVAS_HEIGHT,
       });
 
       socket.broadcast.emit("game:playerJoined", newPlayer);
@@ -199,30 +230,27 @@ io.on("connection", (socket) => {
     }
   );
 
-  socket.on(
-    "game:playerMove",
-    (data: { position: { x: number; y: number } }) => {
-      const player = gameState.players.get(socket.id);
-      if (!player) return;
+  socket.on("game:playerInput", (data: { input: string; state: boolean }) => {
+    const player = gameState.players.get(socket.id);
+    if (!player) return;
 
-      const maxDistance = 20;
-      const distance = Math.sqrt(
-        Math.pow(data.position.x - player.position.x, 2) +
-          Math.pow(data.position.y - player.position.y, 2)
-      );
-
-      if (distance <= maxDistance) {
-        checkCollisionAndTransferPique(player, data.position);
-
-        player.position = data.position;
-
-        socket.broadcast.emit("game:playerMoved", {
-          playerId: socket.id,
-          position: data.position,
-        });
-      }
+    switch (data.input) {
+      case "up":
+        player.velocity.y = data.state ? -PLAYER_SPEED : 0;
+        break;
+      case "down":
+        player.velocity.y = data.state ? PLAYER_SPEED : 0;
+        break;
+      case "left":
+        player.velocity.x = data.state ? -PLAYER_SPEED : 0;
+        break;
+      case "right":
+        player.velocity.x = data.state ? PLAYER_SPEED : 0;
+        break;
     }
-  );
+
+    gameState.players.set(socket.id, player);
+  });
 
   socket.on("disconnect", () => {
     console.log(`Player disconnected: ${socket.id}`);
@@ -230,7 +258,7 @@ io.on("connection", (socket) => {
     const disconnectedPlayer = gameState.players.get(socket.id);
     gameState.players.delete(socket.id);
 
-    socket.broadcast.emit("game.playerLeft", socket.id);
+    socket.broadcast.emit("game:playerLeft", socket.id);
 
     if (disconnectedPlayer?.isIt && gameState.players.size > 0) {
       selectRandomPlayerAsIt();
