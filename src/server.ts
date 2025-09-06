@@ -1,6 +1,7 @@
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { GAME_CONFIG, PLAYER_COLORS } from "./constants";
 
 const app = express();
 const server = createServer(app);
@@ -37,11 +38,6 @@ const gameState: GameState = {
   players: new Map(),
   gameStarted: false,
 };
-
-const CANVAS_WIDTH = 800;
-const CANVAS_HEIGHT = 600;
-const PLAYER_SPEED = 5;
-const PIQUE_SPEED_BONUS = 1.3;
 
 const isPositionTooClose = (position: { x: number; y: number }): boolean => {
   const MIN_DISTANCE = 100;
@@ -86,14 +82,14 @@ const selectRandomPlayerAsIt = () => {
   // Remove o pique de todos os jogadores
   players.forEach((player) => {
     player.isIt = false;
-    player.color = "gray";
+    player.color = PLAYER_COLORS.NORMAL;
   });
 
   // Seleciona um jogador aleatório para ser o pique
   const randomIndex = Math.floor(Math.random() * players.length);
   const selectedPlayer = players[randomIndex];
   selectedPlayer.isIt = true;
-  selectedPlayer.color = "red";
+  selectedPlayer.color = PLAYER_COLORS.PIQUE;
 
   // Atualiza o jogador no Map
   gameState.players.set(selectedPlayer.id, selectedPlayer);
@@ -119,10 +115,10 @@ const checkCollisionAndTransferPique = (movingPlayer: Player) => {
     if (distance < collisionDistance) {
       // Transfere o pique
       movingPlayer.isIt = false;
-      movingPlayer.color = "gray";
+      movingPlayer.color = PLAYER_COLORS.NORMAL;
 
       otherPlayer.isIt = true;
-      otherPlayer.color = "red";
+      otherPlayer.color = PLAYER_COLORS.PIQUE;
 
       // Atualiza no Map
       gameState.players.set(movingPlayer.id, movingPlayer);
@@ -147,8 +143,11 @@ const updatePlayerPositions = () => {
     let newY = player.position.y + player.velocity.y;
 
     // Verifica limites do canvas
-    newX = Math.max(0, Math.min(CANVAS_WIDTH - player.width, newX));
-    newY = Math.max(0, Math.min(CANVAS_HEIGHT - player.height, newY));
+    newX = Math.max(0, Math.min(GAME_CONFIG.ARENA_WIDTH - player.width, newX));
+    newY = Math.max(
+      0,
+      Math.min(GAME_CONFIG.ARENA_HEIGHT - player.height, newY)
+    );
 
     player.position.x = newX;
     player.position.y = newY;
@@ -174,62 +173,57 @@ setInterval(() => {
 io.on("connection", (socket) => {
   console.log(`Player connected, ${socket.id}`);
 
-  socket.on(
-    "game:initRequest",
-    (data: { playerWidth: number; playerHeight: number }) => {
-      const { playerWidth, playerHeight } = data;
+  socket.on("game:initRequest", () => {
+    const newPlayer: Player = {
+      id: socket.id,
+      socketId: socket.id,
+      position: getRandomSpawnPosition(
+        GAME_CONFIG.ARENA_WIDTH,
+        GAME_CONFIG.ARENA_HEIGHT,
+        GAME_CONFIG.PLAYER_SIZE,
+        GAME_CONFIG.PLAYER_SIZE
+      ),
+      color: PLAYER_COLORS.NORMAL,
+      width: GAME_CONFIG.PLAYER_SIZE,
+      height: GAME_CONFIG.PLAYER_SIZE,
+      nickname: `Player ${gameState.players.size + 1}`,
+      isIt: false,
+      velocity: { x: 0, y: 0 },
+    };
 
-      const newPlayer: Player = {
-        id: socket.id,
-        socketId: socket.id,
-        position: getRandomSpawnPosition(
-          CANVAS_WIDTH,
-          CANVAS_HEIGHT,
-          playerWidth,
-          playerHeight
-        ),
-        color: "gray",
-        width: playerWidth,
-        height: playerHeight,
-        nickname: `Player ${gameState.players.size + 1}`,
-        isIt: false,
-        velocity: { x: 0, y: 0 },
-      };
+    gameState.players.set(socket.id, newPlayer);
 
+    socket.emit("game:init", {
+      playerId: socket.id,
+      player: newPlayer,
+      players: Array.from(gameState.players.values()),
+      canvasWidth: GAME_CONFIG.ARENA_WIDTH,
+      canvasHeight: GAME_CONFIG.ARENA_HEIGHT,
+    });
+
+    socket.broadcast.emit("game:playerJoined", newPlayer);
+
+    // Se é o primeiro jogador e o jogo ainda não começou
+    if (gameState.players.size === 1 && !gameState.gameStarted) {
+      newPlayer.isIt = true;
+      newPlayer.color = PLAYER_COLORS.PIQUE;
       gameState.players.set(socket.id, newPlayer);
+      gameState.gameStarted = true;
 
-      socket.emit("game:init", {
-        playerId: socket.id,
-        player: newPlayer,
+      // Notifica que o jogo começou
+      io.emit("game:started", {
+        itPlayerId: socket.id,
         players: Array.from(gameState.players.values()),
-        canvasWidth: CANVAS_WIDTH,
-        canvasHeight: CANVAS_HEIGHT,
       });
-
-      socket.broadcast.emit("game:playerJoined", newPlayer);
-
-      // Se é o primeiro jogador e o jogo ainda não começou
-      if (gameState.players.size === 1 && !gameState.gameStarted) {
-        newPlayer.isIt = true;
-        newPlayer.color = "red";
-        gameState.players.set(socket.id, newPlayer);
-        gameState.gameStarted = true;
-
-        // Notifica que o jogo começou
-        io.emit("game:started", {
-          itPlayerId: socket.id,
-          players: Array.from(gameState.players.values()),
-        });
-      }
-      // Se há mais de um jogador e nenhum está no pique, seleciona um aleatório
-      else if (
-        gameState.players.size > 1 &&
-        !Array.from(gameState.players.values()).some((p) => p.isIt)
-      ) {
-        selectRandomPlayerAsIt();
-      }
     }
-  );
+    // Se há mais de um jogador e nenhum está no pique, seleciona um aleatório
+    else if (
+      gameState.players.size > 1 &&
+      !Array.from(gameState.players.values()).some((p) => p.isIt)
+    ) {
+      selectRandomPlayerAsIt();
+    }
+  });
 
   socket.on("game:playerInput", (data: { input: string; state: boolean }) => {
     const player = gameState.players.get(socket.id);
@@ -238,22 +232,30 @@ io.on("connection", (socket) => {
     switch (data.input) {
       case "up":
         player.velocity.y = data.state
-          ? -(PLAYER_SPEED * (player.isIt ? PIQUE_SPEED_BONUS : 1))
+          ? -(
+              GAME_CONFIG.PLAYER_SPEED *
+              (player.isIt ? GAME_CONFIG.PIQUE_SPEED_BONUS : 1)
+            )
           : 0;
         break;
       case "down":
         player.velocity.y = data.state
-          ? PLAYER_SPEED * (player.isIt ? PIQUE_SPEED_BONUS : 1)
+          ? GAME_CONFIG.PLAYER_SPEED *
+            (player.isIt ? GAME_CONFIG.PIQUE_SPEED_BONUS : 1)
           : 0;
         break;
       case "left":
         player.velocity.x = data.state
-          ? -(PLAYER_SPEED * (player.isIt ? PIQUE_SPEED_BONUS : 1))
+          ? -(
+              GAME_CONFIG.PLAYER_SPEED *
+              (player.isIt ? GAME_CONFIG.PIQUE_SPEED_BONUS : 1)
+            )
           : 0;
         break;
       case "right":
         player.velocity.x = data.state
-          ? PLAYER_SPEED * (player.isIt ? PIQUE_SPEED_BONUS : 1)
+          ? GAME_CONFIG.PLAYER_SPEED *
+            (player.isIt ? GAME_CONFIG.PIQUE_SPEED_BONUS : 1)
           : 0;
         break;
     }
