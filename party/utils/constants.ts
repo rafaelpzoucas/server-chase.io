@@ -6,7 +6,7 @@ export const GAME_CONFIG = {
   // Players - configurações dos jogadores
   PLAYER_SIZE: 20, // tamanho do quadrado do jogador
   PLAYER_SPEED: 6, // pixels por segundo
-  PIQUE_SPEED_BONUS: 1.5, // 50% mais rápido
+  PIQUE_SPEED_BONUS: 1.2, // 20% mais rápido
   FREEZE_DURATION: 1000, // 1 segundo congelado
 
   // Game - configurações da partida
