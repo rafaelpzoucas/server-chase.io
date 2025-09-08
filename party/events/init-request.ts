@@ -1,8 +1,8 @@
 import type * as Party from "partykit/server";
 import { GameState, Player } from "../types";
 import { getRandomSpawnPosition } from "../utils/get-random-spawn-position";
-import { GAME_CONFIG, PLAYER_COLORS } from "../utils/constants";
 import { selectRandomPlayerAsIt } from "../utils/select-random-player-as-it";
+import { gameConfig } from "../config";
 
 export function initRequest(
   connection: Party.Connection,
@@ -13,15 +13,15 @@ export function initRequest(
     id: connection.id,
     socketId: connection.id,
     position: getRandomSpawnPosition(
-      GAME_CONFIG.ARENA_WIDTH,
-      GAME_CONFIG.ARENA_HEIGHT,
-      GAME_CONFIG.PLAYER_SIZE,
-      GAME_CONFIG.PLAYER_SIZE,
+      gameConfig.arena.width,
+      gameConfig.arena.height,
+      gameConfig.player.size,
+      gameConfig.player.size,
       gameState
     ),
-    color: PLAYER_COLORS.NORMAL,
-    width: GAME_CONFIG.PLAYER_SIZE,
-    height: GAME_CONFIG.PLAYER_SIZE,
+    color: gameConfig.player.color.NORMAL,
+    width: gameConfig.player.size,
+    height: gameConfig.player.size,
     nickname: `Player ${gameState.players.size + 1}`,
     isIt: false,
     velocity: { x: 0, y: 0 },
@@ -37,8 +37,8 @@ export function initRequest(
         playerId: connection.id,
         player: newPlayer,
         players: Array.from(gameState.players.values()),
-        canvasWidth: GAME_CONFIG.ARENA_WIDTH,
-        canvasHeight: GAME_CONFIG.ARENA_HEIGHT,
+        canvasWidth: gameConfig.arena.width,
+        canvasHeight: gameConfig.arena.height,
       },
     })
   );
@@ -55,7 +55,7 @@ export function initRequest(
   // Se é o primeiro jogador e o jogo ainda não começou
   if (gameState.players.size === 1 && !gameState.gameStarted) {
     newPlayer.isIt = true;
-    newPlayer.color = PLAYER_COLORS.PIQUE;
+    newPlayer.color = gameConfig.player.color.NORMAL;
     gameState.players.set(connection.id, newPlayer);
     gameState.gameStarted = true;
 

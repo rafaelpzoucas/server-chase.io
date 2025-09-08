@@ -1,6 +1,6 @@
 import type * as Party from "partykit/server";
-import { PLAYER_COLORS } from "./constants";
 import { GameState } from "../types";
+import { gameConfig } from "../config";
 
 export function selectRandomPlayerAsIt(gameState: GameState, room: Party.Room) {
   const players = Array.from(gameState.players.values());
@@ -9,14 +9,14 @@ export function selectRandomPlayerAsIt(gameState: GameState, room: Party.Room) {
   // Remove o pique de todos os jogadores
   players.forEach((player) => {
     player.isIt = false;
-    player.color = PLAYER_COLORS.NORMAL;
+    player.color = gameConfig.player.color.NORMAL;
   });
 
   // Seleciona um jogador aleatório para ser o pique
   const randomIndex = Math.floor(Math.random() * players.length);
   const selectedPlayer = players[randomIndex];
   selectedPlayer.isIt = true;
-  selectedPlayer.color = PLAYER_COLORS.PIQUE;
+  selectedPlayer.color = gameConfig.player.color.PIQUE;
 
   // Atualiza o jogador no Map
   gameState.players.set(selectedPlayer.id, selectedPlayer);

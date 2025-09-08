@@ -1,6 +1,6 @@
 import type * as Party from "partykit/server";
 import { GameState } from "../types";
-import { GAME_CONFIG } from "../utils/constants";
+import { gameConfig } from "../config";
 
 // Interface para controlar o estado das teclas
 interface PlayerInputState {
@@ -50,8 +50,8 @@ export function playerInput(
   }
 
   // Calcula a velocidade baseada em todas as teclas pressionadas
-  const speedMultiplier = player.isIt ? GAME_CONFIG.PIQUE_SPEED_BONUS : 1;
-  const baseSpeed = GAME_CONFIG.PLAYER_SPEED * speedMultiplier;
+  const speedMultiplier = player.isIt ? gameConfig.player.pique_speed_bonus : 1;
+  const baseSpeed = gameConfig.player.speed * speedMultiplier;
 
   // Reseta a velocidade
   player.velocity.x = 0;

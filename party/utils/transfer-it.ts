@@ -1,6 +1,6 @@
 import type * as Party from "partykit/server";
 import { GameState, Player } from "../types";
-import { PLAYER_COLORS } from "./constants";
+import { gameConfig } from "../config";
 
 export function transferPique(
   playerId: string,
@@ -11,10 +11,10 @@ export function transferPique(
 ) {
   // Transfere o pique
   movingPlayer.isIt = false;
-  movingPlayer.color = PLAYER_COLORS.NORMAL;
+  movingPlayer.color = gameConfig.player.color.NORMAL;
 
   otherPlayer.isIt = true;
-  otherPlayer.color = PLAYER_COLORS.PIQUE;
+  otherPlayer.color = gameConfig.player.color.PIQUE;
 
   // Atualiza no Map
   gameState.players.set(movingPlayer.id, movingPlayer);
