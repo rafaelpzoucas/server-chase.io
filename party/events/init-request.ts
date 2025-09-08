@@ -25,6 +25,7 @@ export function initRequest(
     nickname: `Player ${gameState.players.size + 1}`,
     isIt: false,
     velocity: { x: 0, y: 0 },
+    immuneUntil: Date.now(),
   };
 
   gameState.players.set(connection.id, newPlayer);
@@ -56,6 +57,9 @@ export function initRequest(
   if (gameState.players.size === 1 && !gameState.gameStarted) {
     newPlayer.isIt = true;
     newPlayer.color = gameConfig.player.color.NORMAL;
+    newPlayer.width = gameConfig.player.pique_size;
+    newPlayer.height = gameConfig.player.pique_size;
+
     gameState.players.set(connection.id, newPlayer);
     gameState.gameStarted = true;
 

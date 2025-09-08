@@ -9,4 +9,8 @@ export const gameConfig = {
 
   // Players - configurações dos jogadores
   player: PlayerConfig,
+
+  pique: {
+    immunityTime: 3000,
+  },
 };

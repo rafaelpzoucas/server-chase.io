@@ -1,8 +1,9 @@
 // Cores dos jogadores
 export const PlayerColors = {
-  PIQUE: "red", // vermelho
-  NORMAL: "gray", // cinza
-  SELECTED: "green", // verde
+  PIQUE: "red",
+  NORMAL: "gray",
+  SELECTED: "green",
+  IMMUNE: "yellow",
 } as const;
 
 export const PlayerConfig = {

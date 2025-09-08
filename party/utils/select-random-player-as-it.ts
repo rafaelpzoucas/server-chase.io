@@ -15,8 +15,11 @@ export function selectRandomPlayerAsIt(gameState: GameState, room: Party.Room) {
   // Seleciona um jogador aleatório para ser o pique
   const randomIndex = Math.floor(Math.random() * players.length);
   const selectedPlayer = players[randomIndex];
+
   selectedPlayer.isIt = true;
   selectedPlayer.color = gameConfig.player.color.PIQUE;
+  selectedPlayer.width = gameConfig.player.pique_size;
+  selectedPlayer.height = gameConfig.player.pique_size;
 
   // Atualiza o jogador no Map
   gameState.players.set(selectedPlayer.id, selectedPlayer);

@@ -11,6 +11,7 @@ export function checkCollision(
 
   for (const [playerId, otherPlayer] of gameState.players.entries()) {
     if (playerId === movingPlayer.id || otherPlayer.isIt) continue;
+    if (Date.now() < otherPlayer.immuneUntil) continue;
 
     const dx = movingPlayer.position.x - otherPlayer.position.x;
     const dy = movingPlayer.position.y - otherPlayer.position.y;
