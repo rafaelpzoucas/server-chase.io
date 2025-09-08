@@ -4,7 +4,8 @@ export const GAME_CONFIG = {
   ARENA_HEIGHT: 600,
 
   // Players - configurações dos jogadores
-  PLAYER_SIZE: 20, // tamanho do quadrado do jogador
+  PLAYER_SIZE: 40, // tamanho do quadrado do jogador
+  PIQUE_PLAYER_SIZE: 30, //tamanho do quadrado do pique
   PLAYER_SPEED: 6, // pixels por segundo
   PIQUE_SPEED_BONUS: 1.2, // 20% mais rápido
   FREEZE_DURATION: 1000, // 1 segundo congelado
