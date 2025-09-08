@@ -7,7 +7,8 @@ import { gameConfig } from "../config";
 export function initRequest(
   connection: Party.Connection,
   gameState: GameState,
-  room: Party.Room
+  room: Party.Room,
+  nickname: string
 ) {
   const newPlayer: Player = {
     id: connection.id,
@@ -22,7 +23,7 @@ export function initRequest(
     color: gameConfig.player.color.NORMAL,
     width: gameConfig.player.size,
     height: gameConfig.player.size,
-    nickname: `Player ${gameState.players.size + 1}`,
+    nickname,
     isIt: false,
     velocity: { x: 0, y: 0 },
     immuneUntil: Date.now(),
