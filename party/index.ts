@@ -5,6 +5,8 @@ import { updatePlayerPositions } from "./utils/update-player-positions";
 import { initRequest } from "./events/init-request";
 import { playerInput } from "./events/player-input";
 import { disconnect } from "./events/disconnect";
+import { gameConfig } from "./config";
+import { restartGame } from "./events/restart-game";
 
 export default class GameServer implements Party.Server {
   private gameState: GameState;
@@ -12,8 +14,10 @@ export default class GameServer implements Party.Server {
 
   constructor(readonly room: Party.Room) {
     this.gameState = {
-      players: new Map(),
+      activePlayers: new Map(),
+      eliminatedPlayers: new Map(),
       gameStarted: false,
+      gameFinished: false,
     };
   }
 
@@ -64,6 +68,10 @@ export default class GameServer implements Party.Server {
           const nickname =
             (sender as any).nickname || `Player ${sender.id.slice(0, 6)}`;
           initRequest(sender, this.gameState, this.room, nickname);
+          break;
+
+        case "game:restart":
+          restartGame(sender, this.gameState, this.room);
           break;
 
         case "game:playerInput":
@@ -133,11 +141,11 @@ export default class GameServer implements Party.Server {
 
   private startGameLoop() {
     this.gameLoop = setInterval(() => {
-      if (this.gameState.players.size > 0) {
+      if (this.gameState.activePlayers.size > 0) {
         updatePlayerPositions(this.gameState, this.room);
 
         // Envia atualizações de posição para todos os clientes
-        const playersArray = Array.from(this.gameState.players.values());
+        const playersArray = Array.from(this.gameState.activePlayers.values());
         const message = JSON.stringify({
           type: "game:playersUpdate",
           payload: playersArray,

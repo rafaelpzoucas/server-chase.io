@@ -5,7 +5,7 @@ import type * as Party from "partykit/server";
 import { gameConfig } from "../config";
 
 export function updatePlayerPositions(gameState: GameState, room: Party.Room) {
-  for (const player of gameState.players.values()) {
+  for (const player of gameState.activePlayers.values()) {
     let newX = player.position.x + player.velocity.x;
     let newY = player.position.y + player.velocity.y;
 
@@ -14,7 +14,7 @@ export function updatePlayerPositions(gameState: GameState, room: Party.Room) {
     newY = Math.max(0, Math.min(gameConfig.arena.height - player.height, newY));
 
     // Verifica colisão com outros jogadores antes de aplicar
-    for (const [id, other] of gameState.players.entries()) {
+    for (const [id, other] of gameState.activePlayers.entries()) {
       if (id === player.id) continue;
 
       const dx = newX - other.position.x;

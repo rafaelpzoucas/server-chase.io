@@ -13,6 +13,8 @@ export interface Player {
 }
 
 export interface GameState {
-  players: Map<string, Player>;
+  activePlayers: Map<string, Player>;
+  eliminatedPlayers: Map<string, Player>;
   gameStarted: boolean;
+  gameFinished: boolean;
 }

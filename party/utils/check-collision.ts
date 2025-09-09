@@ -9,7 +9,7 @@ export function checkCollision(
 ) {
   if (!movingPlayer.isIt) return;
 
-  for (const [playerId, otherPlayer] of gameState.players.entries()) {
+  for (const [playerId, otherPlayer] of gameState.activePlayers.entries()) {
     if (playerId === movingPlayer.id || otherPlayer.isIt) continue;
     if (Date.now() < otherPlayer.immuneUntil) continue;
 

@@ -30,7 +30,8 @@ export function initRequest(
     caught_count: 0,
   };
 
-  gameState.players.set(connection.id, newPlayer);
+  // Novos jogadores sempre entram como ativos
+  gameState.activePlayers.set(connection.id, newPlayer);
 
   // Envia dados de inicialização para o jogador que se conectou
   connection.send(
@@ -39,7 +40,8 @@ export function initRequest(
       payload: {
         playerId: connection.id,
         player: newPlayer,
-        players: Array.from(gameState.players.values()),
+        activePlayers: Array.from(gameState.activePlayers.values()),
+        eliminatedPlayers: Array.from(gameState.eliminatedPlayers.values()),
         canvasWidth: gameConfig.arena.width,
         canvasHeight: gameConfig.arena.height,
       },
@@ -50,19 +52,23 @@ export function initRequest(
   room.broadcast(
     JSON.stringify({
       type: "game:playerJoined",
-      payload: newPlayer,
+      payload: {
+        player: newPlayer,
+        activePlayers: Array.from(gameState.activePlayers.values()),
+        eliminatedPlayers: Array.from(gameState.eliminatedPlayers.values()),
+      },
     }),
     [connection.id]
   );
 
-  // Se é o primeiro jogador e o jogo ainda não começou
-  if (gameState.players.size === 1 && !gameState.gameStarted) {
+  // Se é o primeiro jogador ativo e o jogo ainda não começou
+  if (gameState.activePlayers.size === 1 && !gameState.gameStarted) {
     newPlayer.isIt = true;
-    newPlayer.color = gameConfig.player.color.NORMAL;
+    newPlayer.color = gameConfig.player.color.PIQUE;
     newPlayer.width = gameConfig.player.pique_size;
     newPlayer.height = gameConfig.player.pique_size;
 
-    gameState.players.set(connection.id, newPlayer);
+    gameState.activePlayers.set(connection.id, newPlayer);
     gameState.gameStarted = true;
 
     // Notifica que o jogo começou (broadcast para todos)
@@ -71,15 +77,16 @@ export function initRequest(
         type: "game:started",
         payload: {
           itPlayerId: connection.id,
-          players: Array.from(gameState.players.values()),
+          activePlayers: Array.from(gameState.activePlayers.values()),
+          eliminatedPlayers: Array.from(gameState.eliminatedPlayers.values()),
         },
       })
     );
   }
-  // Se há mais de um jogador e nenhum está no pique, seleciona um aleatório
+  // Se há mais de um jogador ativo e nenhum está no pique, seleciona um aleatório
   else if (
-    gameState.players.size > 1 &&
-    !Array.from(gameState.players.values()).some((p) => p.isIt)
+    gameState.activePlayers.size > 1 &&
+    !Array.from(gameState.activePlayers.values()).some((p) => p.isIt)
   ) {
     selectRandomPlayerAsIt(gameState, room);
   }

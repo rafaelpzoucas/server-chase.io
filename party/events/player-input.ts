@@ -18,7 +18,7 @@ export function playerInput(
   data: { input: string; state: boolean },
   gameState: GameState
 ) {
-  const player = gameState.players.get(connection.id);
+  const player = gameState.activePlayers.get(connection.id);
   if (!player) return;
 
   // Inicializa o estado de input do jogador se não existir
@@ -78,7 +78,7 @@ export function playerInput(
     player.velocity.y = player.velocity.y > 0 ? diagonalSpeed : -diagonalSpeed;
   }
 
-  gameState.players.set(connection.id, player);
+  gameState.activePlayers.set(connection.id, player);
 }
 
 // Função para limpar estado quando jogador desconectar

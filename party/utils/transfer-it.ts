@@ -20,14 +20,21 @@ export function transferPique(
   otherPlayer.color = gameConfig.player.color.PIQUE;
   otherPlayer.width = gameConfig.player.pique_size;
   otherPlayer.height = gameConfig.player.pique_size;
+  otherPlayer.caught_count++;
 
-  if (otherPlayer.caught_count < 3) {
-    otherPlayer.caught_count++;
+  if (otherPlayer.caught_count === 3) {
+    // Remove do activePlayers
+    gameState.activePlayers.delete(otherPlayer.id);
+
+    // Adiciona ao eliminatedPlayers
+    gameState.eliminatedPlayers.set(otherPlayer.id, otherPlayer);
+  } else {
+    // Se não foi eliminado, apenas atualiza no activePlayers
+    gameState.activePlayers.set(playerId, otherPlayer);
   }
 
-  // Atualiza no Map
-  gameState.players.set(itPlayer.id, itPlayer);
-  gameState.players.set(playerId, otherPlayer);
+  // Sempre atualiza o itPlayer (que perdeu o pique)
+  gameState.activePlayers.set(itPlayer.id, itPlayer);
 
   // Notifica todos os jogadores sobre a mudança de pique
   room.broadcast(
@@ -36,7 +43,8 @@ export function transferPique(
       payload: {
         fromPlayerId: itPlayer.id,
         toPlayerId: playerId,
-        players: Array.from(gameState.players.values()),
+        activePlayers: Array.from(gameState.activePlayers.values()),
+        eliminatedPlayers: Array.from(gameState.eliminatedPlayers.values()),
       },
     })
   );

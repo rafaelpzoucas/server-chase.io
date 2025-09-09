@@ -3,13 +3,15 @@ import { GameState } from "../types";
 import { gameConfig } from "../config";
 
 export function selectRandomPlayerAsIt(gameState: GameState, room: Party.Room) {
-  const players = Array.from(gameState.players.values());
+  const players = Array.from(gameState.activePlayers.values());
   if (players.length === 0) return;
 
   // Remove o pique de todos os jogadores
   players.forEach((player) => {
     player.isIt = false;
     player.color = gameConfig.player.color.NORMAL;
+    player.width = gameConfig.player.size;
+    player.height = gameConfig.player.size;
   });
 
   // Seleciona um jogador aleatório para ser o pique
@@ -22,7 +24,7 @@ export function selectRandomPlayerAsIt(gameState: GameState, room: Party.Room) {
   selectedPlayer.height = gameConfig.player.pique_size;
 
   // Atualiza o jogador no Map
-  gameState.players.set(selectedPlayer.id, selectedPlayer);
+  gameState.activePlayers.set(selectedPlayer.id, selectedPlayer);
 
   // Notifica todos os jogadores sobre quem está no pique
   room.broadcast(
@@ -30,7 +32,8 @@ export function selectRandomPlayerAsIt(gameState: GameState, room: Party.Room) {
       type: "game:piqueChanged",
       payload: {
         playerId: selectedPlayer.id,
-        players: Array.from(gameState.players.values()),
+        activePlayers: Array.from(gameState.activePlayers.values()),
+        eliminatedPlayers: Array.from(gameState.eliminatedPlayers.values()),
       },
     })
   );
