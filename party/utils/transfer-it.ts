@@ -21,6 +21,10 @@ export function transferPique(
   otherPlayer.width = gameConfig.player.pique_size;
   otherPlayer.height = gameConfig.player.pique_size;
 
+  if (otherPlayer.caught_count < 3) {
+    otherPlayer.caught_count++;
+  }
+
   // Atualiza no Map
   gameState.players.set(itPlayer.id, itPlayer);
   gameState.players.set(playerId, otherPlayer);

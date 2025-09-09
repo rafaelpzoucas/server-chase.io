@@ -27,6 +27,7 @@ export function initRequest(
     isIt: false,
     velocity: { x: 0, y: 0 },
     immuneUntil: Date.now(),
+    caught_count: 0,
   };
 
   gameState.players.set(connection.id, newPlayer);
