@@ -26,7 +26,7 @@ export function initRequest(
     nickname,
     isIt: false,
     velocity: { x: 0, y: 0 },
-    immuneUntil: Date.now(),
+    immuneUntil: null,
     caught_count: 0,
   };
 
