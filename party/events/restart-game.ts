@@ -3,48 +3,83 @@ import { GameState } from "../types";
 import { gameConfig } from "../config";
 import { selectRandomPlayerAsIt } from "../utils/select-random-player-as-it";
 
-export function restartGame(
-  connection: Party.Connection,
-  gameState: GameState,
-  room: Party.Room
-) {
-  // Reset básico e deixa o initRequest cuidar do resto
-  gameState.gameStarted = false;
-
-  // Move eliminados para ativos
+export function restartGame(gameState: GameState, room: Party.Room) {
+  // Move eliminados para ativos ANTES de resetar estados
   gameState.eliminatedPlayers.forEach((player, id) => {
-    player.caught_count = 0;
-    gameState.activePlayers.set(id, player);
-  });
-  gameState.eliminatedPlayers.clear();
-
-  // Reset todos os ativos
-  gameState.activePlayers.forEach((player) => {
-    player.caught_count = 0;
+    // Reset completo do jogador eliminado
+    player.caughtCount = 0;
     player.isIt = false;
     player.color = gameConfig.player.color.NORMAL;
     player.width = gameConfig.player.size;
     player.height = gameConfig.player.size;
+
+    // Move para ativos
+    gameState.activePlayers.set(id, player);
+  });
+  gameState.eliminatedPlayers.clear();
+
+  // Reset COMPLETO de todos os jogadores ativos
+  gameState.activePlayers.forEach((player) => {
+    player.caughtCount = 0;
+    player.isIt = false;
+    player.color = gameConfig.player.color.NORMAL;
+    player.width = gameConfig.player.size;
+    player.height = gameConfig.player.size;
+
+    // Reset de posição se necessário (caso tenham ficado em posições inválidas)
+    // Descomente se houver propriedades de posição
+    // player.x = gameConfig.player.initialPosition.x;
+    // player.y = gameConfig.player.initialPosition.y;
   });
 
-  // Reutiliza a lógica do initRequest
+  // Só define como iniciado DEPOIS de configurar tudo
   if (gameState.activePlayers.size === 1) {
-    // Lógica para 1 jogador (do initRequest)
+    // Para 1 jogador, ele é automaticamente "it"
+    const singlePlayer = Array.from(gameState.activePlayers.values())[0];
+    singlePlayer.isIt = true;
+    singlePlayer.color = gameConfig.player.color.PIQUE;
   } else if (gameState.activePlayers.size > 1) {
     selectRandomPlayerAsIt(gameState, room);
   }
 
-  // Broadcast similar ao game:started
+  // AGORA sim marca como iniciado
+  gameState.gameStarted = true;
+
+  // Busca o jogador "it" para o broadcast
+  const itPlayer = Array.from(gameState.activePlayers.values()).find(
+    (p) => p.isIt
+  );
+
+  // Broadcast com informações completas
   room.broadcast(
     JSON.stringify({
-      type: "game:started", // Reutiliza o evento existente!
+      type: "game:restarted", // Evento específico para restart
       payload: {
-        itPlayerId: Array.from(gameState.activePlayers.values()).find(
-          (p) => p.isIt
-        )?.id,
+        gameStarted: true,
+        itPlayerId: itPlayer?.id,
         activePlayers: Array.from(gameState.activePlayers.values()),
-        eliminatedPlayers: Array.from(gameState.eliminatedPlayers.values()),
+        eliminatedPlayers: [], // Sempre vazio após restart
+        totalPlayers: gameState.activePlayers.size,
       },
     })
+  );
+
+  // Opcional: Também enviar game:started para compatibilidade
+  room.broadcast(
+    JSON.stringify({
+      type: "game:started",
+      payload: {
+        itPlayerId: itPlayer?.id,
+        activePlayers: Array.from(gameState.activePlayers.values()),
+        eliminatedPlayers: [],
+      },
+    })
+  );
+
+  console.log(
+    `Jogo reiniciado com ${gameState.activePlayers.size} jogadores. Jogador "it": ${itPlayer?.id}`
+  );
+  console.log(
+    `Teclas de movimento resetadas para ${gameState.activePlayers.size} jogadores`
   );
 }

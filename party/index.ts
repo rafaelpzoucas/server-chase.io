@@ -1,4 +1,4 @@
-// server.ts - PartyKit version with room support
+// server.ts - PartyKit version with immunity system
 import type * as Party from "partykit/server";
 import { GameState } from "./types";
 import { updatePlayerPositions } from "./utils/update-player-positions";
@@ -8,9 +8,45 @@ import { disconnect } from "./events/disconnect";
 import { gameConfig } from "./config";
 import { restartGame } from "./events/restart-game";
 
+// ✅ Importar o gerenciador de imunidade
+export class ImmunityManager {
+  private immunityTimers = new Map<string, NodeJS.Timeout>();
+
+  setImmunity(
+    playerId: string,
+    durationMs: number,
+    callback: () => void
+  ): void {
+    // Limpa timer anterior se existir
+    this.clearImmunity(playerId);
+
+    // Cria novo timer
+    const timer = setTimeout(() => {
+      callback();
+      this.immunityTimers.delete(playerId);
+    }, durationMs);
+
+    this.immunityTimers.set(playerId, timer);
+  }
+
+  clearImmunity(playerId: string): void {
+    const existingTimer = this.immunityTimers.get(playerId);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+      this.immunityTimers.delete(playerId);
+    }
+  }
+
+  clearAllImmunities(): void {
+    this.immunityTimers.forEach((timer) => clearTimeout(timer));
+    this.immunityTimers.clear();
+  }
+}
+
 export default class GameServer implements Party.Server {
   private gameState: GameState;
   private gameLoop: NodeJS.Timeout | null = null;
+  private immunityManager: ImmunityManager; // ✅ Adicionar gerenciador
 
   constructor(readonly room: Party.Room) {
     this.gameState = {
@@ -19,6 +55,9 @@ export default class GameServer implements Party.Server {
       gameStarted: false,
       gameFinished: false,
     };
+
+    // ✅ Inicializar o gerenciador de imunidade
+    this.immunityManager = new ImmunityManager();
   }
 
   onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
@@ -71,7 +110,9 @@ export default class GameServer implements Party.Server {
           break;
 
         case "game:restart":
-          restartGame(sender, this.gameState, this.room);
+          // ✅ Limpar todas as imunidades ao reiniciar
+          this.immunityManager.clearAllImmunities();
+          restartGame(this.gameState, this.room);
           break;
 
         case "game:playerInput":
@@ -109,6 +150,9 @@ export default class GameServer implements Party.Server {
     console.log(
       `Player disconnected: ${conn.id} (${nickname}) - Room: ${this.room.id}`
     );
+
+    // ✅ Limpar imunidade do jogador que saiu
+    this.immunityManager.clearImmunity(conn.id);
 
     disconnect(conn, this.gameState, this.room);
     const connections = Array.from(this.room.getConnections());
@@ -161,6 +205,9 @@ export default class GameServer implements Party.Server {
       clearInterval(this.gameLoop);
       this.gameLoop = null;
     }
+
+    // ✅ Limpar todas as imunidades quando o loop para
+    this.immunityManager.clearAllImmunities();
   }
 
   // Método para broadcast personalizado (equivalente ao io.emit)
@@ -177,6 +224,41 @@ export default class GameServer implements Party.Server {
   // Getter para acessar o gameState de outros módulos
   getGameState() {
     return this.gameState;
+  }
+
+  // ✅ Getter para acessar o immunity manager de outros módulos
+  getImmunityManager() {
+    return this.immunityManager;
+  }
+
+  // ✅ Método helper para definir imunidade
+  setPlayerImmunity(playerId: string, durationMs: number) {
+    const player = this.gameState.activePlayers.get(playerId);
+    if (!player) return;
+
+    // Define imunidade
+    player.isImmune = true;
+    this.gameState.activePlayers.set(playerId, player);
+
+    // Programa remoção da imunidade
+    this.immunityManager.setImmunity(playerId, durationMs, () => {
+      const currentPlayer = this.gameState.activePlayers.get(playerId);
+      if (currentPlayer) {
+        currentPlayer.isImmune = false;
+        this.gameState.activePlayers.set(playerId, currentPlayer);
+
+        // Notifica sobre expiração da imunidade
+        this.room.broadcast(
+          JSON.stringify({
+            type: "game:immunityExpired",
+            payload: {
+              playerId,
+              activePlayers: Array.from(this.gameState.activePlayers.values()),
+            },
+          })
+        );
+      }
+    });
   }
 }
 

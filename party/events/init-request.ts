@@ -26,8 +26,8 @@ export function initRequest(
     nickname,
     isIt: false,
     velocity: { x: 0, y: 0 },
-    immuneUntil: null,
-    caught_count: 0,
+    caughtCount: 0,
+    isImmune: false,
   };
 
   // Novos jogadores sempre entram como ativos

@@ -1,3 +1,4 @@
+// transfer-it.ts - Versão atualizada para usar com o servidor
 import type * as Party from "partykit/server";
 import { GameState, Player } from "../types";
 import { gameConfig } from "../config";
@@ -10,9 +11,9 @@ export function transferPique(
   room: Party.Room
 ) {
   // Atualiza o contador do jogador atingido
-  otherPlayer.caught_count++;
+  otherPlayer.caughtCount++;
 
-  if (otherPlayer.caught_count >= 3) {
+  if (otherPlayer.caughtCount >= 3) {
     // Jogador eliminado — NÃO recebe o pique
     gameState.activePlayers.delete(otherPlayer.id);
     gameState.eliminatedPlayers.set(otherPlayer.id, otherPlayer);
@@ -31,7 +32,31 @@ export function transferPique(
     itPlayer.color = gameConfig.player.color.NORMAL;
     itPlayer.width = gameConfig.player.size;
     itPlayer.height = gameConfig.player.size;
-    itPlayer.immuneUntil = Date.now() + gameConfig.pique.immunityTime;
+
+    // ✅ NOVA LÓGICA: Define imunidade usando método do servidor
+    // Como não temos acesso direto ao servidor aqui, vamos definir manualmente
+    itPlayer.isImmune = true;
+
+    // Programa remoção da imunidade usando setTimeout
+    setTimeout(() => {
+      // Verifica se o jogador ainda existe e remove imunidade
+      const currentPlayer = gameState.activePlayers.get(itPlayer.id);
+      if (currentPlayer && currentPlayer.isImmune) {
+        currentPlayer.isImmune = false;
+        gameState.activePlayers.set(itPlayer.id, currentPlayer);
+
+        // Notifica sobre expiração da imunidade
+        room.broadcast(
+          JSON.stringify({
+            type: "game:immunityExpired",
+            payload: {
+              playerId: itPlayer.id,
+              activePlayers: Array.from(gameState.activePlayers.values()),
+            },
+          })
+        );
+      }
+    }, gameConfig.pique.immunityTime);
 
     otherPlayer.isIt = true;
     otherPlayer.color = gameConfig.player.color.PIQUE;
@@ -48,7 +73,7 @@ export function transferPique(
       type: "game:piqueTransferred",
       payload: {
         fromPlayerId: itPlayer.id,
-        toPlayerId: otherPlayer.isIt ? otherPlayer.id : itPlayer.id, // garante consistência
+        toPlayerId: otherPlayer.isIt ? otherPlayer.id : itPlayer.id,
         activePlayers: Array.from(gameState.activePlayers.values()),
         eliminatedPlayers: Array.from(gameState.eliminatedPlayers.values()),
       },

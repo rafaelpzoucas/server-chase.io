@@ -11,7 +11,9 @@ export function checkCollision(
 
   for (const [playerId, otherPlayer] of gameState.activePlayers.entries()) {
     if (playerId === movingPlayer.id || otherPlayer.isIt) continue;
-    if (Date.now() < otherPlayer.immuneUntil) continue;
+
+    // ✅ MUDANÇA: Substituir verificação de timestamp por propriedade booleana
+    if (otherPlayer.isImmune) continue;
 
     const dx = movingPlayer.position.x - otherPlayer.position.x;
     const dy = movingPlayer.position.y - otherPlayer.position.y;
