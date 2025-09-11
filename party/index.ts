@@ -1,4 +1,4 @@
-// server.ts - PartyKit version with immunity system
+// server.ts - PartyKit version with immunity system and 2-player alternating mechanic
 import type * as Party from "partykit/server";
 import { GameState } from "./types";
 import { updatePlayerPositions } from "./utils/update-player-positions";
@@ -7,6 +7,8 @@ import { playerInput } from "./events/player-input";
 import { disconnect } from "./events/disconnect";
 import { gameConfig } from "./config";
 import { restartGame } from "./events/restart-game";
+import { TwoPlayerManager } from "./classes/two-player-manager";
+import { transferPique } from "./utils/transfer-it";
 
 // ✅ Importar o gerenciador de imunidade
 export class ImmunityManager {
@@ -46,7 +48,8 @@ export class ImmunityManager {
 export default class GameServer implements Party.Server {
   private gameState: GameState;
   private gameLoop: NodeJS.Timeout | null = null;
-  private immunityManager: ImmunityManager; // ✅ Adicionar gerenciador
+  private immunityManager: ImmunityManager;
+  private twoPlayerManager: TwoPlayerManager;
 
   constructor(readonly room: Party.Room) {
     this.gameState = {
@@ -56,8 +59,8 @@ export default class GameServer implements Party.Server {
       gameFinished: false,
     };
 
-    // ✅ Inicializar o gerenciador de imunidade
     this.immunityManager = new ImmunityManager();
+    this.twoPlayerManager = new TwoPlayerManager();
   }
 
   onConnect(conn: Party.Connection, ctx: Party.ConnectionContext) {
@@ -70,20 +73,17 @@ export default class GameServer implements Party.Server {
       }`
     );
 
-    // Armazena o nickname na conexão para usar posteriormente
     if (nickname) {
       (conn as any).nickname = nickname;
     }
 
     const connections = Array.from(this.room.getConnections());
 
-    // Inicia o game loop quando o primeiro jogador se conecta
     if (connections.length === 1 && !this.gameLoop) {
       console.log(`🎮 Starting game loop for room: ${this.room.id}`);
       this.startGameLoop();
     }
 
-    // Opcional: Notificar outros jogadores sobre o novo jogador
     this.room.broadcast(
       JSON.stringify({
         type: "room:playerConnected",
@@ -93,7 +93,7 @@ export default class GameServer implements Party.Server {
           totalPlayers: connections.length,
         },
       }),
-      [conn.id] // Excluir o próprio jogador da notificação
+      [conn.id]
     );
   }
 
@@ -103,24 +103,28 @@ export default class GameServer implements Party.Server {
 
       switch (data.type) {
         case "game:initRequest":
-          // Passa o nickname armazenado na conexão
           const nickname =
             (sender as any).nickname || `Player ${sender.id.slice(0, 6)}`;
           initRequest(sender, this.gameState, this.room, nickname);
+
+          // ✅ Verificar se deve ativar modo 2 jogadores após init
+          this.checkTwoPlayerMode();
           break;
 
         case "game:restart":
-          // ✅ Limpar todas as imunidades ao reiniciar
           this.immunityManager.clearAllImmunities();
+          this.twoPlayerManager.stop(this.room); // ✅ Parar modo 2 jogadores
           restartGame(this.gameState, this.room);
           break;
 
         case "game:playerInput":
           playerInput(sender, data.payload, this.gameState);
+          if (this.gameState.activePlayers.size === 2) {
+            this.checkTwoPlayerMode();
+          }
           break;
 
         case "room:info":
-          // Retorna informações da sala
           sender.send(
             JSON.stringify({
               type: "room:info",
@@ -151,13 +155,11 @@ export default class GameServer implements Party.Server {
       `Player disconnected: ${conn.id} (${nickname}) - Room: ${this.room.id}`
     );
 
-    // ✅ Limpar imunidade do jogador que saiu
     this.immunityManager.clearImmunity(conn.id);
-
     disconnect(conn, this.gameState, this.room);
+
     const connections = Array.from(this.room.getConnections());
 
-    // Notificar outros jogadores sobre a desconexão
     this.room.broadcast(
       JSON.stringify({
         type: "room:playerDisconnected",
@@ -169,7 +171,9 @@ export default class GameServer implements Party.Server {
       })
     );
 
-    // Para o game loop se não há mais jogadores
+    // ✅ Verificar modo 2 jogadores após desconexão
+    this.checkTwoPlayerMode();
+
     if (connections.length === 0 && this.gameLoop) {
       console.log(`⏹️ Stopping game loop for room: ${this.room.id}`);
       this.stopGameLoop();
@@ -188,7 +192,6 @@ export default class GameServer implements Party.Server {
       if (this.gameState.activePlayers.size > 0) {
         updatePlayerPositions(this.gameState, this.room);
 
-        // Envia atualizações de posição para todos os clientes
         const playersArray = Array.from(this.gameState.activePlayers.values());
         const message = JSON.stringify({
           type: "game:playersUpdate",
@@ -206,11 +209,89 @@ export default class GameServer implements Party.Server {
       this.gameLoop = null;
     }
 
-    // ✅ Limpar todas as imunidades quando o loop para
     this.immunityManager.clearAllImmunities();
+    this.twoPlayerManager.stop(this.room); // ✅ Parar modo 2 jogadores
   }
 
-  // Método para broadcast personalizado (equivalente ao io.emit)
+  // ✅ Método para verificar e gerenciar o modo 2 jogadores
+  private checkTwoPlayerMode() {
+    const activePlayersCount = this.gameState.activePlayers.size;
+
+    if (
+      activePlayersCount === 2 &&
+      this.gameState.gameStarted &&
+      !this.gameState.gameFinished
+    ) {
+      // Ativar modo 2 jogadores se não estiver ativo
+      if (!this.twoPlayerManager.isRunning()) {
+        this.twoPlayerManager.start(this.gameState, this.room, () =>
+          this.alternateItPlayer()
+        );
+      }
+    } else {
+      // Desativar modo 2 jogadores se estiver ativo
+      if (this.twoPlayerManager.isRunning()) {
+        this.twoPlayerManager.stop(this.room);
+
+        this.room.broadcast(
+          JSON.stringify({
+            type: "game:twoPlayerModeStopped",
+            payload: {
+              message: "Modo 2 jogadores desativado.",
+            },
+          })
+        );
+      }
+    }
+  }
+
+  // ✅ Método para alternar o jogador "it"
+  private alternateItPlayer() {
+    const activePlayers = Array.from(this.gameState.activePlayers.values());
+
+    if (activePlayers.length !== 2) {
+      console.log("❌ Cannot alternate - not exactly 2 players");
+      return;
+    }
+
+    // Encontrar o jogador atual "it"
+    const currentItPlayer = activePlayers.find((player) => player.isIt);
+    const otherPlayer = activePlayers.find((player) => !player.isIt);
+
+    if (!currentItPlayer || !otherPlayer) {
+      console.log("❌ Cannot alternate - no clear it/non-it players");
+      return;
+    }
+
+    transferPique(currentItPlayer, otherPlayer, this.gameState, this.room);
+
+    console.log(
+      `🔄 Alternated IT: ${currentItPlayer.nickname} -> ${otherPlayer.nickname}`
+    );
+
+    // Dar 3 segundos de imunidade ao ex-it para evitar tag imediato
+    this.setPlayerImmunity(currentItPlayer.id, 3000);
+
+    // Notificar todos os jogadores
+    this.room.broadcast(
+      JSON.stringify({
+        type: "game:itAlternated",
+        payload: {
+          newItPlayer: {
+            id: otherPlayer.id,
+            nickname: otherPlayer.nickname,
+          },
+          formerItPlayer: {
+            id: currentItPlayer.id,
+            nickname: currentItPlayer.nickname,
+          },
+          activePlayers: Array.from(this.gameState.activePlayers.values()),
+          nextAlternateIn: 10000, // Próxima alternância em 10s
+        },
+      })
+    );
+  }
+
   broadcast(type: string, payload: any, exclude?: Party.Connection) {
     const message = JSON.stringify({ type, payload });
 
@@ -221,33 +302,32 @@ export default class GameServer implements Party.Server {
     }
   }
 
-  // Getter para acessar o gameState de outros módulos
   getGameState() {
     return this.gameState;
   }
 
-  // ✅ Getter para acessar o immunity manager de outros módulos
   getImmunityManager() {
     return this.immunityManager;
   }
 
-  // ✅ Método helper para definir imunidade
+  // ✅ Getter para o two player manager
+  getTwoPlayerManager() {
+    return this.twoPlayerManager;
+  }
+
   setPlayerImmunity(playerId: string, durationMs: number) {
     const player = this.gameState.activePlayers.get(playerId);
     if (!player) return;
 
-    // Define imunidade
     player.isImmune = true;
     this.gameState.activePlayers.set(playerId, player);
 
-    // Programa remoção da imunidade
     this.immunityManager.setImmunity(playerId, durationMs, () => {
       const currentPlayer = this.gameState.activePlayers.get(playerId);
       if (currentPlayer) {
         currentPlayer.isImmune = false;
         this.gameState.activePlayers.set(playerId, currentPlayer);
 
-        // Notifica sobre expiração da imunidade
         this.room.broadcast(
           JSON.stringify({
             type: "game:immunityExpired",
@@ -262,5 +342,4 @@ export default class GameServer implements Party.Server {
   }
 }
 
-// Para compatibilidade com os módulos existentes
 export { GameState };

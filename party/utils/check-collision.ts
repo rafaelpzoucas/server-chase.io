@@ -22,7 +22,8 @@ export function checkCollision(
     const collisionDistance = movingPlayer.width / 2 + otherPlayer.width / 2;
 
     if (distance < collisionDistance) {
-      transferPique(playerId, movingPlayer, otherPlayer, gameState, room);
+      otherPlayer.caughtCount++;
+      transferPique(movingPlayer, otherPlayer, gameState, room);
       break; // Para depois da primeira colisão
     }
   }

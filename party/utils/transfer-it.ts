@@ -4,15 +4,11 @@ import { GameState, Player } from "../types";
 import { gameConfig } from "../config";
 
 export function transferPique(
-  playerId: string,
   itPlayer: Player,
   otherPlayer: Player,
   gameState: GameState,
   room: Party.Room
 ) {
-  // Atualiza o contador do jogador atingido
-  otherPlayer.caughtCount++;
-
   if (otherPlayer.caughtCount >= 3) {
     // Jogador eliminado — NÃO recebe o pique
     gameState.activePlayers.delete(otherPlayer.id);
